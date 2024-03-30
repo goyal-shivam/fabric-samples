@@ -16,22 +16,18 @@ type SmartContract struct {
 // Insert struct field in alphabetic order => to achieve determinism across languages
 // golang keeps the order when marshal to json but doesn't order automatically
 type Asset struct {
-	AppraisedValue int    `json:"AppraisedValue"`
-	Color          string `json:"Color"`
-	ID             string `json:"ID"`
-	Owner          string `json:"Owner"`
-	Size           int    `json:"Size"`
+	// AppraisedValue int    `json:"AppraisedValue"`
+	// Color          string `json:"Color"`
+	ID string `json:"ID"`
+	// Owner          string `json:"Owner"`
+	Number int `json:"Number"`
 }
 
 // InitLedger adds a base set of assets to the ledger
 func (s *SmartContract) InitLedger(ctx contractapi.TransactionContextInterface) error {
 	assets := []Asset{
-		{ID: "asset1", Color: "blue", Size: 5, Owner: "Tomoko", AppraisedValue: 300},
-		{ID: "asset2", Color: "red", Size: 5, Owner: "Brad", AppraisedValue: 400},
-		{ID: "asset3", Color: "green", Size: 10, Owner: "Jin Soo", AppraisedValue: 500},
-		{ID: "asset4", Color: "yellow", Size: 10, Owner: "Max", AppraisedValue: 600},
-		{ID: "asset5", Color: "black", Size: 15, Owner: "Adriana", AppraisedValue: 700},
-		{ID: "asset6", Color: "white", Size: 15, Owner: "Michel", AppraisedValue: 800},
+		// {ID: "steel", Number: 1000},
+		{ID: "steel", Number: 400},
 	}
 
 	for _, asset := range assets {
@@ -50,7 +46,7 @@ func (s *SmartContract) InitLedger(ctx contractapi.TransactionContextInterface) 
 }
 
 // CreateAsset issues a new asset to the world state with given details.
-func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface, id string, color string, size int, owner string, appraisedValue int) error {
+func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface, id string, number int) error {
 	exists, err := s.AssetExists(ctx, id)
 	if err != nil {
 		return err
@@ -60,11 +56,8 @@ func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface,
 	}
 
 	asset := Asset{
-		ID:             id,
-		Color:          color,
-		Size:           size,
-		Owner:          owner,
-		AppraisedValue: appraisedValue,
+		ID:     id,
+		Number: number,
 	}
 	assetJSON, err := json.Marshal(asset)
 	if err != nil {
@@ -94,7 +87,7 @@ func (s *SmartContract) ReadAsset(ctx contractapi.TransactionContextInterface, i
 }
 
 // UpdateAsset updates an existing asset in the world state with provided parameters.
-func (s *SmartContract) UpdateAsset(ctx contractapi.TransactionContextInterface, id string, color string, size int, owner string, appraisedValue int) error {
+func (s *SmartContract) UpdateAsset(ctx contractapi.TransactionContextInterface, id string, number int) error {
 	exists, err := s.AssetExists(ctx, id)
 	if err != nil {
 		return err
@@ -105,11 +98,8 @@ func (s *SmartContract) UpdateAsset(ctx contractapi.TransactionContextInterface,
 
 	// overwriting original asset with new asset
 	asset := Asset{
-		ID:             id,
-		Color:          color,
-		Size:           size,
-		Owner:          owner,
-		AppraisedValue: appraisedValue,
+		ID:     id,
+		Number: number,
 	}
 	assetJSON, err := json.Marshal(asset)
 	if err != nil {
@@ -142,6 +132,7 @@ func (s *SmartContract) AssetExists(ctx contractapi.TransactionContextInterface,
 	return assetJSON != nil, nil
 }
 
+/*
 // TransferAsset updates the owner field of asset with given id in world state, and returns the old owner.
 func (s *SmartContract) TransferAsset(ctx contractapi.TransactionContextInterface, id string, newOwner string) (string, error) {
 	asset, err := s.ReadAsset(ctx, id)
@@ -164,6 +155,8 @@ func (s *SmartContract) TransferAsset(ctx contractapi.TransactionContextInterfac
 
 	return oldOwner, nil
 }
+
+*/
 
 // GetAllAssets returns all assets found in world state
 func (s *SmartContract) GetAllAssets(ctx contractapi.TransactionContextInterface) ([]*Asset, error) {
@@ -192,3 +185,122 @@ func (s *SmartContract) GetAllAssets(ctx contractapi.TransactionContextInterface
 
 	return assets, nil
 }
+
+/*
+// Smart contract that converts one asset into another
+func (s *SmartContract) MakeItem(ctx contractapi.TransactionContextInterface, item string, number int) error {
+
+	steelRequired := make(map[string]int)
+	steelRequired["body"] = 50
+	steelRequired["door"] = 5
+	steelRequired["chassis"] = 100
+	steelRequired["engine"] = 100
+	steelRequired["transmission"] = 100
+	steelRequired["suspension"] = 100
+	steelRequired["wheels"] = 2
+
+	_, exists := steelRequired[item]
+
+	if !exists {
+		return fmt.Errorf("Cannot create item %s (%w)", item, item)
+	}
+
+	// Check steel asset availability
+	steelAsset, err := s.ReadAsset(ctx, "steel")
+	if err != nil {
+		return fmt.Errorf("failed to read steel asset: %w", err) // Wrap original error for context
+	}
+
+	used_steel := steelRequired[item] * number
+
+	if steelAsset.Number < used_steel {
+		return fmt.Errorf("insufficient steel: needed %d, only %d available", used_steel, steelAsset.Number)
+	}
+
+	// Update steel asset quantity (assuming it's decremented after use)
+	steelAsset.Number -= used_steel
+	err = s.UpdateAsset(ctx, "steel", steelAsset.Number)
+	if err != nil {
+		return fmt.Errorf("failed to update steel asset: %w", err)
+	}
+
+	// Check if body asset already exists
+	exists, err = s.AssetExists(ctx, item)
+	if err != nil {
+		return fmt.Errorf("failed to check for %s asset: %w", item, err)
+	}
+
+	if exists {
+		// Increment item asset count
+		itemAsset, err := s.ReadAsset(ctx, item)
+		if err != nil {
+			return fmt.Errorf("failed to read item asset: %w", err)
+		}
+		itemAsset.Number += number
+		err = s.UpdateAsset(ctx, item, itemAsset.Number)
+		if err != nil {
+			return fmt.Errorf("failed to update item asset: %w", err)
+		}
+	} else {
+		// Create item asset if it doesn't exist
+		err = s.CreateAsset(ctx, item, number)
+		if err != nil {
+			return fmt.Errorf("failed to create item asset: %w", err)
+		}
+	}
+
+	return nil // Indicate successful item creation
+}
+
+*/
+
+// /*
+// Smart contract that converts one asset into another
+func (s *SmartContract) MakeBody(ctx contractapi.TransactionContextInterface, id string, id2 string) error {
+
+	// Check steel asset availability
+	steelAsset, err := s.ReadAsset(ctx, "steel")
+	if err != nil {
+		return fmt.Errorf("failed to read steel asset: %w", err) // Wrap original error for context
+	}
+
+	if steelAsset.Number < 50 {
+		return fmt.Errorf("insufficient steel: need at least 50, only %d available", steelAsset.Number)
+	}
+
+	// Update steel asset quantity (assuming it's decremented after use)
+	steelAsset.Number -= 50
+	err = s.UpdateAsset(ctx, "steel", steelAsset.Number)
+	if err != nil {
+		return fmt.Errorf("failed to update steel asset: %w", err)
+	}
+
+	// Check if body asset already exists
+	exists, err := s.AssetExists(ctx, "body")
+	if err != nil {
+		return fmt.Errorf("failed to check for body asset: %w", err)
+	}
+
+	if exists {
+		// Increment body asset count
+		bodyAsset, err := s.ReadAsset(ctx, "body")
+		if err != nil {
+			return fmt.Errorf("failed to read body asset: %w", err)
+		}
+		bodyAsset.Number++
+		err = s.UpdateAsset(ctx, "body", bodyAsset.Number)
+		if err != nil {
+			return fmt.Errorf("failed to update body asset: %w", err)
+		}
+	} else {
+		// Create body asset if it doesn't exist
+		err = s.CreateAsset(ctx, "body", 1)
+		if err != nil {
+			return fmt.Errorf("failed to create body asset: %w", err)
+		}
+	}
+
+	return nil // Indicate successful body creation
+}
+
+// */
