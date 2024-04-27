@@ -26,6 +26,7 @@ package main
  * 2 specific Hyperledger Fabric specific libraries for Smart Contracts
  */
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 
@@ -50,10 +51,10 @@ func (s *SmartContract) Init(APIstub shim.ChaincodeStubInterface) pb.Response {
 
 // Invoke routes invocations to the appropriate function in chaincode
 // Current supported invocations are:
-//	- update, adds a delta to an aggregate variable in the ledger, all variables are assumed to start at 0
-//	- get, retrieves the aggregate value of a variable in the ledger
-//	- prune, deletes all rows associated with the variable and replaces them with a single row containing the aggregate value
-//	- delete, removes all rows associated with the variable
+//   - update, adds a delta to an aggregate variable in the ledger, all variables are assumed to start at 0
+//   - get, retrieves the aggregate value of a variable in the ledger
+//   - prune, deletes all rows associated with the variable and replaces them with a single row containing the aggregate value
+//   - delete, removes all rows associated with the variable
 func (s *SmartContract) Invoke(APIstub shim.ChaincodeStubInterface) pb.Response {
 	// Retrieve the requested Smart Contract function and arguments
 	function, args := APIstub.GetFunctionAndParameters()
@@ -73,6 +74,8 @@ func (s *SmartContract) Invoke(APIstub shim.ChaincodeStubInterface) pb.Response 
 		return s.getStandard(APIstub, args)
 	} else if function == "delstandard" {
 		return s.delStandard(APIstub, args)
+	} else if function == "getAllVars" {
+		return s.getAllVars(APIstub, args)
 	}
 
 	return shim.Error("Invalid Smart Contract function name.")
@@ -95,7 +98,11 @@ func (s *SmartContract) update(APIstub shim.ChaincodeStubInterface, args []strin
 	// Check we have a valid number of args
 	if len(args) != 3 {
 		return shim.Error("Incorrect number of arguments, expecting 3")
-	}
+	} 
+	
+	/*else {
+		return shim.Error("Not implemented yet - Jaan boojh ke error ka rha hoon")
+	}*/
 
 	// Extract the args
 	name := args[0]
@@ -144,7 +151,9 @@ func (s *SmartContract) get(APIstub shim.ChaincodeStubInterface, args []string) 
 	// Check we have a valid number of args
 	if len(args) != 1 {
 		return shim.Error("Incorrect number of arguments, expecting 1")
-	}
+	} /*else {
+		return shim.Error("Not implemented yet - Jaan boojh ke error ka rha hoon")
+	}*/
 
 	name := args[0]
 	// Get all deltas for the variable
@@ -213,7 +222,9 @@ func (s *SmartContract) prune(APIstub shim.ChaincodeStubInterface, args []string
 	// Check we have a valid number of ars
 	if len(args) != 1 {
 		return shim.Error("Incorrect number of arguments, expecting 1")
-	}
+	} /*else {
+		return shim.Error("Not implemented yet - Jaan boojh ke error ka rha hoon")
+	}*/
 
 	// Retrieve the name of the variable to prune
 	name := args[0]
@@ -393,4 +404,73 @@ func (s *SmartContract) delStandard(APIstub shim.ChaincodeStubInterface, args []
 	}
 
 	return shim.Success(nil)
+}
+
+// Write a function to get all variables in the blockchain, like getAllVars function. You can refer to this code below
+
+/*
+func (s *SmartContract) GetAllAssets(ctx contractapi.TransactionContextInterface) ([]*Asset, error) {
+	// range query with empty string for startKey and endKey does an
+	// open-ended query of all assets in the chaincode namespace.
+	resultsIterator, err := ctx.GetStub().GetStateByRange("", "")
+	if err != nil {
+		return nil, err
+	}
+	defer resultsIterator.Close()
+
+	var assets []*Asset
+	for resultsIterator.HasNext() {
+		queryResponse, err := resultsIterator.Next()
+		if err != nil {
+			return nil, err
+		}
+
+		var asset Asset
+		err = json.Unmarshal(queryResponse.Value, &asset)
+		if err != nil {
+			return nil, err
+		}
+		assets = append(assets, &asset)
+	}
+
+	return assets, nil
+}
+*/
+
+// high-throughput.go
+
+func (s *SmartContract) getAllVars(APIstub shim.ChaincodeStubInterface, args []string) pb.Response {
+
+	// Get State by partial composite key
+	iter, err := APIstub.GetStateByPartialCompositeKey("varName~op~value~txID", []string{""})
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	var keys []string
+	for iter.HasNext() {
+		kv, err := iter.Next()
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+
+		// Split composite key
+		_, compositeKeyParts, err := APIstub.SplitCompositeKey(kv.Key)
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+
+		// Get variable name
+		name := compositeKeyParts[0]
+
+		keys = append(keys, name)
+	}
+
+	// Return array of keys
+	bytes, err := json.Marshal(keys)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	return shim.Success(bytes)
 }

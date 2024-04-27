@@ -62,6 +62,8 @@ func Update(function, variableName, change, sign string) ([]byte, error) {
 	contract := network.GetContract("bigdatacc")
 
 	result, err := contract.SubmitTransaction(function, variableName, change, sign)
+
+	// fmt.Printf(function, variableName, change, sign)
 	if err != nil {
 		return result, fmt.Errorf("failed to Submit transaction: %v", err)
 	}
